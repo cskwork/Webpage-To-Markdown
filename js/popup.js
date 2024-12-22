@@ -49,40 +49,80 @@ class MarkdownConverter {
             if (!tab || !tab.id) {
                 throw new Error('No active tab found');
             }
-
+    
             // Execute the content script
             const results = await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: () => {
                     // This function runs in the context of the web page
                     try {
+                        // Helper function to get iframe content
+                        const getIframeContent = (iframe) => {
+                            try {
+                                // Check if we can access the iframe content
+                                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                                if (!iframeDoc) return '';
+    
+                                // Clone the iframe document to avoid modifications to the original
+                                const iframeClone = iframeDoc.body.cloneNode(true);
+                                
+                                // Remove unwanted elements from iframe content
+                                const unwantedInIframe = iframeClone.querySelectorAll(
+                                    'script, style, nav, footer, aside, .ads, .comments'
+                                );
+                                unwantedInIframe.forEach(el => el.remove());
+    
+                                return `<div class="iframe-content">${iframeClone.innerHTML}</div>`;
+                            } catch (e) {
+                                console.warn('Could not access iframe content:', e);
+                                return '';
+                            }
+                        };
+    
                         // Create a clone of the document to work with
                         const documentClone = document.cloneNode(true);
                         
-                        // Remove unwanted elements
+                        // Get all iframes before removing them
+                        const iframes = documentClone.querySelectorAll('iframe');
+                        let iframeContents = [];
+    
+                        // Collect iframe contents
+                        iframes.forEach((iframe, index) => {
+                            const originalIframe = document.querySelectorAll('iframe')[index];
+                            const content = getIframeContent(originalIframe);
+                            if (content) {
+                                iframeContents.push(content);
+                            }
+                        });
+                        
+                        // Remove unwanted elements (except iframes, we handled them above)
                         const unwanted = documentClone.querySelectorAll(
-                            'script, style, iframe, nav, footer, aside, .ads, .comments, [role="complementary"]'
+                            'script, style, nav, footer, aside, .ads, .comments, [role="complementary"]'
                         );
                         unwanted.forEach(el => el.remove());
-
+    
                         // Try to find the main content
                         const mainContent = documentClone.querySelector(
                             'main, article, .content, .post, .entry, [role="main"]'
                         );
-
-                        // If main content is found, get its HTML
+    
+                        // Prepare the content
+                        let finalContent;
                         if (mainContent) {
-                            return {
-                                title: document.title,
-                                content: mainContent.innerHTML,
-                                success: true
-                            };
+                            finalContent = mainContent.innerHTML;
+                        } else {
+                            finalContent = document.body.innerHTML;
                         }
-
-                        // Fallback to body content
+    
+                        // Append iframe contents at the end of the main content
+                        if (iframeContents.length > 0) {
+                            finalContent += '<h2>Embedded Content</h2>';
+                            finalContent += iframeContents.join('<hr>');
+                        }
+    
                         return {
                             title: document.title,
-                            content: document.body.innerHTML,
+                            content: finalContent,
                             success: true
                         };
                     } catch (error) {
@@ -93,40 +133,34 @@ class MarkdownConverter {
                     }
                 }
             });
-
-            // Check if we got results
+    
+            // Rest of your existing code remains the same
             if (!results || !results[0] || !results[0].result) {
                 throw new Error('Failed to get page content');
             }
-
+    
             const { success, content, title, error } = results[0].result;
-
+    
             if (!success) {
                 throw new Error(`Failed to extract content: ${error}`);
             }
-
-            // Create a wrapper for the content
+    
             const wrappedContent = `
                 <div class="markdown-content">
                     <h1>${title}</h1>
                     ${content}
                 </div>
             `;
-
-            // Convert to markdown
+    
             const markdown = this.turndownService.turndown(wrappedContent);
-
-            // Update UI
             const output = document.getElementById('output');
             output.value = markdown;
-
-            // Enable buttons
+    
             document.getElementById('copy').disabled = false;
             document.getElementById('download').disabled = false;
             
             this.updateStatus('Conversion complete!', 'success');
             
-            // Save to storage
             await chrome.storage.local.set({ 
                 lastConversion: {
                     url: tab.url,
@@ -138,7 +172,6 @@ class MarkdownConverter {
             console.error('Conversion error:', error);
             this.updateStatus(`Error: ${error.message}`, 'error');
             
-            // Reset UI state
             document.getElementById('output').value = '';
             document.getElementById('copy').disabled = true;
             document.getElementById('download').disabled = true;
