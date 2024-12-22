@@ -1,5 +1,5 @@
 :root {
-    --primary-color: #2196F3;
+    --primary-color: #2099e9;
     --secondary-color: #757575;
     --success-color: #4CAF50;
     --error-color: #f44336;
@@ -58,6 +58,11 @@ body {
 
 .secondary {
     background-color: var(--secondary-color);
+    color: white;
+}
+
+.secondaryEnabled {
+    background-color: var(--success-color);
     color: white;
 }
 

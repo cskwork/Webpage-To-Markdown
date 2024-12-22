@@ -3,8 +3,17 @@
     "name": "Webpage to Markdown",
     "version": "1.0.0",
     "description": "Convert any webpage to Markdown format with a single click",
+    "icons": {
+        "16": "img/icon.png",
+        "48": "img/icon.png", 
+        "128": "img/icon.png"
+      },
     "permissions": ["activeTab", "scripting", "storage"],
     "action": {
+        "default_icon": {
+          "16": "img/icon.png",
+          "48": "img/icon.png"
+        },
       "default_popup": "popup.html"
     },
     "content_security_policy": {
